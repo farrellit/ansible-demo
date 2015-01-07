@@ -1,0 +1,4 @@
+---
+redis_package:
+  yum: redis
+  apt: redis-server

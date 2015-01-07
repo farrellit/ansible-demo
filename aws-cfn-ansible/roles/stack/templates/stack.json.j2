@@ -1,0 +1,330 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Example: Local Ansible via CloudInit",
+  "Parameters": {
+    "VPC": {
+      "Description": "VPC for the Instance",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "AvailabilityZones": {
+      "Description": "List of Availability Zones for ASG",
+      "Type": "CommaDelimitedList"
+    },
+    "Subnets": {
+      "Description": "Subnet for the Instance",
+      "Type": "CommaDelimitedList"
+    },
+    "KeyName": {
+      "Description": "Key pair name for launching instances",
+      "Type": "String"
+    },  
+    "ImageId": { 
+      "Description": "AMI Image for instances",
+      "Type": "String"
+    },
+    "InstanceType": { 
+      "Description": "The instance type for the ASG",
+      "Type": "String", 
+      "Default": "t2.micro"
+    },
+    "MinSize": {
+      "Description": "Minimum number of instances in the ASG", 
+      "Type": "Number", 
+      "Default": "1"
+    },
+    "MaxSize": {
+      "Description": "Maximum number of instances in the ASG", 
+      "Type": "Number", 
+      "Default": "1"
+    },
+    "AnsibleArchive": {
+      "Description": "Location of Ansible archive to execute",
+      "Type": "String"
+    }, 
+    "AnsiblePlaybooks": { 
+      "Description": "Playbooks from archive to execute", 
+      "Type": "CommaDelimitedList", 
+      "Default": "main.yml"
+    },
+    "AnsibleInventory": {
+      "Description": "Additional inventory content that will be written out before the ansible run",
+      "Default": "", 
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "SPSBuildDeployRole": {
+      "Type" : "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument" : {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path" : "/",
+        "Policies" : [
+          {
+            "PolicyName" : "SPSBuildDeployBucket",
+            "PolicyDocument" : {
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": ["s3:GetObject"],
+                "Resource": ["arn:aws:s3:::sps-build-deploy/*"]
+              } ]
+            }
+          }
+        ] 
+      }
+    },
+    "InstanceProfile" : {
+      "Type" : "AWS::IAM::InstanceProfile",
+      "Properties" : {
+        "Path" : "/",
+        "Roles" : [ { "Ref": "SPSBuildDeployRole" } ]
+      }
+    },
+    "InstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for instances, stack {{stack_name}}",
+        "VpcId": { "Ref": "VPC" }
+      }
+    },
+    {% if stack_elb is defined %}
+    {% for listener in stack_elb.listeners %}
+    "InstanceSecurityGroupIngress{{ loop.index }}": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": { "Ref": "InstanceSecurityGroup" },
+        "IpProtocol": "tcp",
+        "FromPort": "{{ listener.instance_port }}",
+        "ToPort": "{{ listener.instance_port }}",
+        "SourceSecurityGroupId": { "Ref": "LoadBalancerSecurityGroup" }
+      } 
+    },
+    {% endfor %}
+    "LoadBalancerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for load balancer, stack {{stack_name}}",
+        "VpcId": {"Ref": "VPC"},
+        "SecurityGroupIngress": [
+          {% for listener in stack_elb.listeners %}
+          {% for allowed in listener.allowed %}
+          {
+            "IpProtocol": "tcp", 
+            "FromPort": "{{ listener.port }}",
+            "ToPort": "{{ listener.port }}",
+            {% if allowed | match('([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}') %}
+            "CidrIp": "{{ allowed }}"
+            {% elif allowed | match('^sg-[0-9a-z]+') %}
+            "SourceSecurityGroupId": "{{ allowed }}"
+            {% else %}
+            "SourceSecurityGroupName": "{{ allowed }}"
+            {% endif %}
+          }{% if loop.revindex0 > 0 %},{% endif %}
+          {% endfor %}
+          {% if loop.revindex0 > 0 %},{% endif %}
+          {% endfor %}
+        ],
+        "SecurityGroupEgress": [
+          {% for listener in stack_elb.listeners %}
+          {
+            "IpProtocol": "tcp", 
+            "FromPort": "{{ listener.instance_port }}",
+            "ToPort": "{{ listener.instance_port }}",
+            "SourceSecurityGroupId": { "Ref": "InstanceSecurityGroup" }
+          } {% if loop.revindex0 > 0 %},{% endif %}
+          {% endfor %}
+        ]
+      }
+    },
+    "LoadBalancer": {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties": {
+        "SecurityGroups": [ 
+          { "Ref": "LoadBalancerSecurityGroup" } 
+          {% if load_balancer_security_groups is defined %}
+          {% for sg in load_balancer_security_groups %}
+          , 
+          "{{sg}}"
+          {% endfor %}
+          {% endif %}
+        ],
+        {% if 'scheme' in stack_elb.keys() and stack_elb.scheme == 'internal' %}
+        "Scheme": "internal",
+        "Subnets": { "Ref": "Subnets" }, 
+        {% else %}
+        "Scheme": "internet-facing",
+        {% endif %}
+        "Subnets": { "Ref": "Subnets" }, 
+        "Listeners": [
+        {% for listener in stack_elb.listeners %}
+        {
+          "LoadBalancerPort": "{{listener.port}}",
+          "InstancePort": "{{listener.instance_port}}",
+          "Protocol": "{{ listener.protocol | default('tcp') }}"
+          {% if 'cert' in listener.keys() %}
+          ,
+          "SSLCertificateId": { "Fn::Join": [ "", [
+            "arn:aws:iam::", { "Ref": "AWS::AccountId" }, ":server-certificate/",
+            "{{ listener.cert }}"
+          ] ] }
+          {% endif %}
+        }{% if loop.revindex0 > 0 %}, {% endif %}
+        {% endfor %}
+        ]
+        {% if 'healthcheck' in stack_elb.keys() %}
+        , 
+        "HealthCheck": {
+          "Interval": "{{ stack_elb.healthcheck.interval }}",
+          "Target": "{{ stack_elb.healthcheck.target}}",
+          "Timeout": "{{ stack_elb.healthcheck.timeout }}",
+          "UnhealthyThreshold": "{{stack_elb.healthcheck.unhealthy_threshold}}",
+          "HealthyThreshold": "{{stack_elb.healthcheck.healthy_threshold}}"
+        }
+        {% endif %}
+      }
+    },
+    {% endif %}
+    "AutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": { 
+        "AvailabilityZones": { "Ref": "AvailabilityZones" },
+        "VPCZoneIdentifier" : { "Ref": "Subnets" },
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "MinSize" : { "Ref" : "MinSize"},
+        "MaxSize" : { "Ref" : "MaxSize"},
+        "Tags": [
+          {% for tag in stack_instance_tags.keys() %}
+            { 
+              "Key": "{{tag}}", "Value": "{{stack_instance_tags[tag]}}",
+              "PropagateAtLaunch": true
+            }{% if loop.revindex0 > 0 %}, {% endif %}
+          {% endfor %}
+        ]
+      }
+    }, 
+    "CfnInitWaitConditionHandle": {
+      "Type": "AWS::CloudFormation::WaitConditionHandle"
+    },
+    "CfnInitWaitCondition": {
+      "Type": "AWS::CloudFormation::WaitCondition",
+      "Properties": {
+        "Handle": { "Ref": "CfnInitWaitConditionHandle" },
+        "Timeout": "1200"
+      }
+    },
+    "LaunchConfig": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "Properties": { 
+        "IamInstanceProfile": { "Ref": "InstanceProfile" },
+        "SecurityGroups": [
+          { "Ref": "InstanceSecurityGroup" } 
+          {% for sg in instance_security_groups %}
+          , "{{sg}}" 
+          {% endfor %}
+        ],
+        "ImageId": { "Ref": "ImageId" },
+        "InstanceType": { "Ref": "InstanceType" }, 
+        "KeyName": { "Ref": "KeyName"}
+        {% if stack_on_snapshot == false %}
+        , 
+        "UserData": 
+          { "Fn::Base64": { "Fn::Join": [ "\n", [
+          "#!/bin/bash -v",
+          "apt-get update", 
+          "apt-get install -y software-properties-common",
+          "apt-get install -y python-setuptools", 
+          "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz",
+          { "Fn::Join": [ " ", [ 
+            "cfn-init",
+              "--region", {"Ref": "AWS::Region"}, 
+              "-s", {"Ref": "AWS::StackName"},  
+              "-r LaunchConfig",
+              "-c ansible"
+          ] ] }, 
+          { "Fn::Join": [ "", [ 
+            "cfn-signal -e $? -r 'ConfigSet ansible' '", {"Ref": "CfnInitWaitConditionHandle"}, "'"
+          ] ] },
+          "echo 'user data ran' `date` > /var/log/user-data.timestamp\n" 
+        ]]}}
+        {% endif %}
+      }
+      {% if stack_on_snapshot == false %}
+      ,
+      "Metadata":  {
+        "AWS::CloudFormation::Authentication": {
+          "S3AccessCreds": {
+            "type": "S3",
+            "roleName": { "Ref": "SPSBuildDeployRole" },
+            "buckets": [ "sps-build-deploy" ] 
+          }
+        },
+        "AWS::CloudFormation::Init": {
+          "configSets": {
+             "ansible": [ "ansible_install", "ansible_playbooks" ]
+          },
+          "ansible_install": { 
+            "commands": {
+              "01_repo": { "command": "apt-add-repository -y ppa:ansible/ansible" },
+              "02_update": { "command": "apt-get update" },
+              "03_install": { "command": "apt-get install -y ansible" },
+              "04_logdir": { "command": "mkdir -p /var/log/ansible" }
+            }
+          },
+          "ansible_playbooks": {
+            "sources": {
+              "/tmp/ansible": { "Ref": "AnsibleArchive" }
+            },
+            "files": {
+              "/tmp/ansible/inventory/cfn_stack": {
+                "content": { "Ref": "AnsibleInventory" },
+                "owner": "root", 
+                "group": "root",
+                "mode": "000644"
+              }
+            },
+            "commands": { 
+              "playbooks": {
+                "command": { "Fn::Join": [ " ", [
+                    "for pb in", 
+                      { "Fn::Join": [ ",", { "Ref": "AnsiblePlaybooks" } ]}, 
+                    "; do ",
+                      "ansible-playbook -i inventory/ $pb ",
+                      ">> /var/log/ansible/$pb.out 2>&1 || exit -1;",
+                    "done; exit 0"
+                  ] ] },
+                "cwd": "/tmp/ansible",
+                "env": { 
+                  "IFS": ",", 
+                  "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                  "HOME": "/root",
+                  "USER": "root"
+                } 
+              }
+            }
+          }
+        }
+      }
+      {% endif %}
+    }
+  },
+  "Outputs": {
+    "AutoScalingGroup": { 
+      "Description": "The name of the AutoScaling Group",
+      "Value": { "Ref": "AutoScalingGroup" }
+    } 
+    {% if stack_on_snapshot | bool %}
+    , 
+    "StackOnSnapshot": { 
+      "Description": "Signifies the AMI if the ASG in this stack has been snapshotted after configuration",
+      "Value": { "Ref": "ImageId" }
+    }
+    {% endif %}
+  } 
+  
+}

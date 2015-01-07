@@ -1,0 +1,8 @@
+---
+- hosts: redis
+  sudo: true
+  roles:
+    - redis
+  post_tasks:
+    - name: check redis connectivity on external port
+      command: redis-cli -h {{ansible_default_ipv4.address}} 'KEYS' '*'

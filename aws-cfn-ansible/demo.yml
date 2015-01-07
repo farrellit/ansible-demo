@@ -1,0 +1,37 @@
+---
+# Example CF stack simply runs a debug on the server in the ASG after boot.
+- hosts: localhost
+  gather_facts: false
+  vars: 
+    group: app-1
+    stack_name: "{{environ}}-AnsibleCfnDemo" 
+    ansible_archive: https://sps-build-deploy.s3.amazonaws.com/ansible/ansible-demo-tarball-0.0.0.tbz2
+    image_group: ubuntu14
+    image_type: t2.micro
+    keypair_name: dfarrell
+    instance_security_groups: [ sg-83dfc9e6 ]
+    ansible_playbooks: main.yml     
+    ansible_inventory: |
+      [localhost]
+      localhost ansible_connection=local
+    stack_instance_tags:
+      "sps:owner": "dfarrell@spscommerce.com"
+      "sps:unit": "techops"
+      "sps:env": "{{environ}}"
+      "sps:hours_of_operation": "0000-2359"
+      "sps:product": "internal"
+    stack_elb:
+      listeners:
+        - instance_port: 22
+          port: 2201
+          allowed:
+            - 0.0.0.0/32
+            - sg-83dfc9e6
+      health_check:
+        interval: 15
+        target: TCP:22
+        timeout: 3
+        healthy_threshold: 2
+        unhealthy_threshold: 2
+  roles:
+    - stack

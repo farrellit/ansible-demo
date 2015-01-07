@@ -1,0 +1,90 @@
+require 'shellwords'
+
+STACK_NAME= ENV['STACK_NAME'] || "CloudInitLocalAnsible2"
+
+YAML = ENV['YAML'] || 'stack.yml'
+
+INVENTORY = ENV['INVENTORY'] || 'inventory/spscommerce'
+
+def stack_name 
+  Shellwords.escape STACK_NAME
+end
+
+def ansible_playbook vars=[],tags=[]
+  vars.unshift "stack_name=#{stack_name}"
+  "ansible-playbook -i #{INVENTORY} #{YAML} " + 
+    "-e #{vars.join ' -e '} " + 
+    ( tags.count > 0 ?  "-t '#{tags.join ' '}'" : "" )
+end
+
+task :default => [ :json, :stackup ]
+
+task :redo => [ :json, :stackdown, :stackup ]
+
+task :stackup do
+  sh  ansible_playbook 
+end
+
+task :stackdown do 
+  sh ansible_playbook(['stack_state=absent'])
+end
+
+task :json do 
+  sh 'python -mjson.tool < stack.json > /dev/null'
+end
+
+require 'json'
+
+def search_hash hash, searches
+  hash.select do |resource|
+    searches.map { |k,v|
+      resource["#{k}"] == v
+    }.reject{ |v| !v }.count > 0 or searches.count == 0 
+  end
+end
+
+def aws_cli command
+  JSON.parse `aws #{ command }`
+end
+
+def cf_resources searches={}
+  cmd="cloudformation describe-stack-resources --stack-name #{stack_name}"
+  search_hash aws_cli(cmd)['StackResources'], searches
+end 
+
+def asg_info asg_name, searches = {}
+  cmd="autoscaling describe-auto-scaling-groups " +
+    "--auto-scaling-group-name #{asg_name}"
+  aws_cli(cmd)['AutoScalingGroups'][0]
+end 
+
+namespace :aws do
+  task :stack do
+    puts JSON.pretty_generate cf_resources
+  end
+  task :asg do
+    asg = cf_resources( "LogicalResourceId" => "AutoScalingGroup" ) 
+    puts JSON.pretty_generate asg_info(asg[0]['PhysicalResourceId'])
+  end
+  task :instances do
+    asg = cf_resources( "LogicalResourceId" => "AutoScalingGroup" ) 
+    instances = asg_info(asg[0]['PhysicalResourceId'] )['Instances']
+    ids = instances.map { |instance|
+      instance['InstanceId']
+    }
+    puts JSON.pretty_generate( 
+      aws_cli "ec2 describe-instances --instance-ids #{ids.join ","}" 
+    )
+  end
+
+end
+
+namespace :discover do
+  task :spscommerce do 
+    sh "workon aws; awsdev; aws-discovery envdata vpc-e3e82a86 | tee vars/spscommerce.yml"
+  end
+  task :spsc do 
+    sh "workon aws; awsprod; aws-discovery envdata vpc-1e4b8f7b | tee vars/spsc.yml"
+  end
+end
+

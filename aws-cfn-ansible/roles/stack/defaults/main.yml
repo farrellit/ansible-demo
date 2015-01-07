@@ -1,0 +1,18 @@
+---
+# auto-discovered from existing stack so subsequent runs are 
+# idempotent
+stack_on_snapshot: false
+
+# this determines whether we're creating or destroying the stack and can be 
+# overridden to destroy stack resources.
+stack_state: present
+
+# Whether to snapshot the first instance and put the stack on a snapshot, 
+# removing the runtime config from userdata and cfn-init metadata.
+snapshot_asg: true
+
+# Disable rollbacks?
+stack_disable_rollback: true
+
+load_balancer_security_groups: []
+instance_security_groups: []

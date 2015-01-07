@@ -1,0 +1,132 @@
+---
+aws_amis:
+  us-east-1:
+    ubuntu14: ami-9eaa1cf6
+account: spscommerce
+vpc: vpc-e3e82a86
+region: us-east-1
+vpc_environment_names:
+- dev
+- test
+- devtest
+vpc_environments:
+  dev:
+    db-diy:
+      subnets:
+      - subnet-646a6a22
+      - subnet-98d83fef
+      - subnet-2d022205
+      azs:
+      - us-east-1b
+      - us-east-1a
+      - us-east-1e
+    db-rds:
+      subnets:
+      - subnet-99d83fee
+      - subnet-2b022203
+      - subnet-676a6a21
+      azs:
+      - us-east-1a
+      - us-east-1e
+      - us-east-1b
+    app-1:
+      subnets:
+      - subnet-596a6a1f
+      - subnet-29022201
+      - subnet-9dd83fea
+      azs:
+      - us-east-1b
+      - us-east-1e
+      - us-east-1a
+    dmz:
+      subnets:
+      - subnet-90d83fe7
+      - subnet-28022200
+      - subnet-586a6a1e
+      azs:
+      - us-east-1a
+      - us-east-1e
+      - us-east-1b
+    nmgt:
+      subnets:
+      - subnet-89d83ffe
+      - subnet-31022219
+      - subnet-686a6a2e
+      azs:
+      - us-east-1a
+      - us-east-1e
+      - us-east-1b
+    app-2:
+      subnets:
+      - subnet-9ad83fed
+      - subnet-666a6a20
+      - subnet-2a022202
+      azs:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1e
+  test:
+    app-2:
+      subnets:
+      - subnet-2602220e
+      - subnet-606a6a26
+      - subnet-85d83ff2
+      azs:
+      - us-east-1e
+      - us-east-1b
+      - us-east-1a
+    db-rds:
+      subnets:
+      - subnet-6e6a6a28
+      - subnet-83d83ff4
+      - subnet-2702220f
+      azs:
+      - us-east-1b
+      - us-east-1a
+      - us-east-1e
+    nmgt:
+      subnets:
+      - subnet-7227c005
+      - subnet-716a6a37
+      - subnet-3602221e
+      azs:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1e
+    app-1:
+      subnets:
+      - subnet-636a6a25
+      - subnet-86d83ff1
+      - subnet-2402220c
+      azs:
+      - us-east-1b
+      - us-east-1a
+      - us-east-1e
+    dmz:
+      subnets:
+      - subnet-87d83ff0
+      - subnet-626a6a24
+      - subnet-2302220b
+      azs:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1e
+    db-diy:
+      subnets:
+      - subnet-81d83ff6
+      - subnet-6d6a6a2b
+      - subnet-39022211
+      azs:
+      - us-east-1a
+      - us-east-1b
+      - us-east-1e
+  devtest:
+    inet:
+      subnets:
+      - subnet-3d846216
+      - subnet-70842007
+      - subnet-9e488fc7
+      azs:
+      - us-east-1e
+      - us-east-1a
+      - us-east-1b

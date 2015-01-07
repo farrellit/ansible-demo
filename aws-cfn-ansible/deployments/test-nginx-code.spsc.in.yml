@@ -1,0 +1,1 @@
+- include: ../nginx-code.spsc.in.yml environ=test account=spscommerce

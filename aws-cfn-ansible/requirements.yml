@@ -1,0 +1,5 @@
+---
+- url: s3://sps-build-deploy/ansible/ansible-mod-awscli-1.0.0.tbz2
+  paths: 
+    - from: ./library
+      to: ./

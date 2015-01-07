@@ -1,0 +1,27 @@
+---
+# Create CF template & stack
+
+- name: Create CloudFormation Stack Template
+  template: >
+    src={{ stack_template | default('stack.json.j2') }} 
+    dest=tmp/{{ stack_name }}.json
+
+- name: create CloudFormation stack 
+  cloudformation:
+    state: '{{ stack_state | default("present") }}'
+    template: tmp/{{stack_name}}.json
+    stack_name: "{{ stack_name }}"
+    disable_rollback: "{{ stack_disable_rollback }}"
+    template_parameters:
+      VPC: "{{vpc}}"
+      AvailabilityZones: "{{ vpc_environments[environ][group]['azs'] | join(',') }}"
+      Subnets: "{{ vpc_environments[environ][group]['subnets']| join(',') }}"
+      KeyName: '{{ keypair_name }}'
+      InstanceType: '{{ image_type }}'
+      ImageId: '{{ image_id | default( aws_amis[region][image_group] ) }}'
+      AnsibleArchive: '{{ ansible_archive }}'
+      AnsiblePlaybooks: "{{ ansible_playbooks }}"
+      AnsibleInventory: "{{ ansible_inventory }}"
+  register: cfstack
+- debug: var=cfstack
+

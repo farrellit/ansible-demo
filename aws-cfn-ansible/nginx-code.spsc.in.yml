@@ -1,0 +1,44 @@
+---
+# Nginx stack for code.spsc.in
+- hosts: localhost
+  gather_facts: false
+  vars: 
+    stack_name: '{{environ}}-NginxCodeSpscIn'
+    group: app-1
+    ansible_archive: https://sps-build-deploy.s3.amazonaws.com/ansible/ansible-pb-nginx-code.spsc.in-1.0.0.tbz2
+    image_type: t2.micro
+    image_group: ubuntu14
+    keypair_name: dfarrell
+    stack_elb:
+      listeners:
+        - port: 80 
+          instance_port: 8080
+          allowed:
+            - 0.0.0.0/0
+        - port: 443
+          instance_port: 8080
+          allowed:
+            - 0.0.0.0/0
+      healthcheck:
+        interval: 10
+        target: HTTP:8080/up
+        timeout: 5
+        unhealthy_threshold: 2
+        healthy_threshold: 3
+    instance_security_groups: [ sg-83dfc9e6 ]
+    ansible_playbooks: main.yml
+    ansible_inventory: |
+      [nginx_ci]
+      [localhost]
+      [nginx_ci:children]
+      localhost
+    stack_instance_tags:
+      "sps:owner": "dfarrell@spscommerce.com"
+      "sps:unit": "techops"
+      "sps:env": "{{environ}}"
+      "sps:hours_of_operation": "0000-2359"
+      "sps:product": "internal"
+  pre_tasks:
+    - include_vars: vars/{{account}}.yml
+  roles:
+    - stack

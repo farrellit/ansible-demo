@@ -1,0 +1,137 @@
+---
+# take an image of the instance in the ASG and set the image_id to 
+# the new image.
+# currently this, like the stack template, assumes only one ASG per stack, which 
+# isn't necessarily incorrect, but we may want to extend to allow multiple ASGs or 
+# even non-ASG instances, which would be easiest if the instances were not defined 
+# directly in the template but rather were defined in ansible data.  
+
+- name: Define snapshot setting, image name , and empty volumes & existing images list
+  set_fact: 
+    do_snapshot: false
+    volumes: []
+    image_name: false
+- name: Set image_name 
+  set_fact:
+    image_name: "AutoScalingGroup {{ cfstack.stack_outputs.AutoScalingGroup }} for Stack {{ stack_name }} "
+  when: stack_state == 'present' 
+
+- name: Decide whether to snapshot instance based on whether stack is present and already on snapshot.
+  set_fact:
+    do_snapshot: true
+  when: ( stack_state == 'present' ) and (stack_on_snapshot == false ) 
+- debug: var=do_snapshot
+  changed_when: false
+
+- name: discover instances to snapshot
+  aws_cli: ec2 describe-instances --filters '[{"Name":"tag:aws:autoscaling:groupName","Values":["{{cfstack.stack_outputs.AutoScalingGroup}}"]},{"Name":"instance-state-name","Values":["running","stopped"]}]'
+  register: stack_instances
+  when: do_snapshot 
+- debug: var=stack_instances
+  when: do_snapshot 
+
+- set_fact: 
+    snapshot_instance: "{{stack_instances.results.Reservations[0].Instances[0]}}"
+  when: do_snapshot 
+- debug: var=snapshot_instance
+  when: do_snapshot 
+
+- name: Suspend Autoscaling Group Processes for Snapshot
+  aws_cli: autoscaling suspend-processes --auto-scaling-group-name {{cfstack.stack_outputs.AutoScalingGroup}}
+  when: do_snapshot 
+
+- name: Stop instance to snapshot
+  ec2: 
+    state: stopped
+    instance_ids: "{{ snapshot_instance.InstanceId }}"
+    wait: yes
+  when: do_snapshot and snapshot_instance.State.Name != 'stopped'
+
+- name: Set Volumes 
+  set_fact: 
+    volumes: "{{snapshot_instance['BlockDeviceMappings']}}"
+  when: do_snapshot 
+- debug: var=volumes
+  when: do_snapshot 
+
+- name: Snapshot root volume
+  ec2_snapshot:
+    description: > 
+      Snapshot of {{snapshot_instance.InstanceId }} 
+      from CloudFormation stack {{ stack_name }}
+    snapshot_tags:
+      "cloudformation-stack-name": "{{stack_name}}"
+    volume_id: "{{item.Ebs.VolumeId}}"
+  with_items: volumes
+  when: do_snapshot and item.DeviceName == snapshot_instance.RootDeviceName 
+  register: root_snapshot
+- debug: var=root_snapshot
+  when: do_snapshot
+
+- name: Start Instance
+  ec2: 
+    state: running
+    instance_ids: "{{ snapshot_instance.InstanceId }}"
+    wait: yes 
+  when: do_snapshot 
+
+- name: Register AMI From Snapshot 
+  aws_cli: > 
+    ec2 register-image 
+    --name "AutoScalingGroup {{ cfstack.stack_outputs.AutoScalingGroup }} for Stack {{ stack_name }} " 
+    --description "Built from {{ snapshot_instance.InstanceId }}"
+    --architecture "{{ snapshot_instance.Architecture }}"
+    --root-device-name "{{ snapshot_instance.RootDeviceName }}"
+    --virtualization-type "{{ snapshot_instance.VirtualizationType }}"
+    --block-device-mappings "[{\"DeviceName\": \"{{snapshot_instance.RootDeviceName }}\",\"Ebs\":{\"SnapshotId\":\"{{root_snapshot.results[0].snapshot_id}}\"}}]"
+  register: new_image
+  when: do_snapshot 
+
+- name: Tag Image
+  aws_cli: ec2 create-tags --resources {{ new_image.results.ImageId }} {{root_snapshot.results[0].snapshot_id}} --tags Key=cloudformation-stack-name,Value={{ stack_name }}
+  when: do_snapshot 
+
+- name: set image_id for next stack update
+  set_fact:
+    image_id: "{{new_image.results.ImageId}}"
+  when: do_snapshot
+
+# Bring up the ASG yet again.
+
+- name: Resume Autoscaling Group Processes for Snapshot
+  aws_cli: autoscaling resume-processes --auto-scaling-group-name {{cfstack.stack_outputs.AutoScalingGroup}}
+  when: do_snapshot
+
+## cleanup images on deletion.  
+
+- name: discover images when destroying stack
+  when: stack_state == 'absent' 
+  aws_cli: ec2 describe-images --filters Name=tag:cloudformation-stack-name,Values={{stack_name}}
+  register: images_to_remove
+  changed_when: false
+- debug: var=images_to_remove
+  when: stack_state == 'absent' 
+
+- name: Delete images
+  when: stack_state == 'absent' and (images_to_remove.results.Images |length > 0)
+  aws_cli: ec2 deregister-image --image-id {{ item.ImageId }}
+  with_items: images_to_remove.results.Images 
+
+- name: discover snapshots when destroying stack
+  when: stack_state == 'absent' 
+  aws_cli: ec2 describe-snapshots --filters Name=tag:cloudformation-stack-name,Values={{stack_name}}
+  register: snapshots_to_remove
+  changed_when: false
+- debug: var=snapshots_to_remove
+  when: stack_state == 'absent' 
+
+- name: Debug snapshots
+  when: stack_state == 'absent' and (snapshots_to_remove.results.Snapshots |length > 0)
+  debug: var=item
+  with_items: snapshots_to_remove.results.Snapshots
+
+- name: Delete snapshots
+  when: stack_state == 'absent' and (snapshots_to_remove.results.Snapshots |length > 0)
+  aws_cli: ec2 delete-snapshot --snapshot-id  {{ item.SnapshotId }}
+  with_items: snapshots_to_remove.results.Snapshots
+

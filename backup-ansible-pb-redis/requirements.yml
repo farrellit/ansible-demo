@@ -1,0 +1,5 @@
+---
+- url: s3://sps-build-deploy/ansible/redis-0.0.0.tgz
+  paths:
+    - from: .
+      to: roles/redis

@@ -1,0 +1,6 @@
+build/*
+!build/.keep
+inventory/vagrant
+inventory/groups
+.vagrant/
+roles/redis

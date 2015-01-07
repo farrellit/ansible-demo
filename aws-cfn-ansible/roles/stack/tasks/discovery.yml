@@ -1,0 +1,26 @@
+---
+# Discover any existing CF stack with given name and, if it exists, collect outputs
+- name: Discover existing Stack (if any)
+  aws_cli: cloudformation describe-stacks --stack-name {{stack_name}}
+  register: existing_cfstack_check
+  failed_when: false 
+  changed_when: false
+- debug: var=existing_cfstack_check
+
+- name: Set fact for existing CF stack 
+  set_fact:
+    existing_cfstack: "{{existing_cfstack_check.results.Stacks[0]}}"
+  when: existing_cfstack_check.rc == 0 
+
+- name: Determine outptus for existing cf stack     
+  set_fact:
+    existing_cfstack_outputs : "{{existing_cfstack_check.results.Stacks[0].Outputs}}"
+  when: existing_cfstack is defined and 'Outputs' in existing_cfstack.keys() 
+
+- name: Determine whether stack is already on snapshot
+  set_fact:
+    stack_on_snapshot: "{{ item.OutputValue | bool }}"
+    image_id: "{{ item.OutputValue }}"
+  with_items: existing_cfstack_outputs | default([]) 
+  when: item.OutputKey == 'StackOnSnapshot'  
+- debug: var=stack_on_snapshot 

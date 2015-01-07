@@ -1,0 +1,7 @@
+- include: discovery.yml
+- include: stack.yml
+  when: stack_on_snapshot == false
+- include: image.yml
+  when: ( stack_on_snapshot == false and snapshot_asg == true  ) or stack_state == 'absent'
+- include: stack.yml stack_on_snapshot=true
+  when: ( stack_state == 'present' and snapshot_asg == true ) or stack_state == 'absent'

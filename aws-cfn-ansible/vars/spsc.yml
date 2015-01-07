@@ -1,0 +1,192 @@
+---
+vpc: vpc-1e4b8f7b
+vpc_environment_names:
+- prod
+- ct
+- stg
+- ppd
+vpc_environments:
+  prod:
+    app-1:
+      subnets:
+      - subnet-12111054
+      - subnet-8ceacba4
+      - subnet-e800e49f
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    nmgt:
+      subnets:
+      - subnet-c900e4be
+      - subnet-3f111079
+      - subnet-e4eacbcc
+      azs:
+      - us-east-1d
+      - us-east-1a
+      - us-east-1c
+    app-2:
+      subnets:
+      - subnet-8eeacba6
+      - subnet-d700e4a0
+      - subnet-13111055
+      azs:
+      - us-east-1c
+      - us-east-1d
+      - us-east-1a
+    stor:
+      subnets:
+      - subnet-8aed2fa1
+      - subnet-63830514
+      - subnet-dfd67786
+      azs:
+      - us-east-1c
+      - us-east-1d
+      - us-east-1a
+    db-diy:
+      subnets:
+      - subnet-82eacbaa
+      - subnet-d500e4a2
+      - subnet-11111057
+      azs:
+      - us-east-1c
+      - us-east-1d
+      - us-east-1a
+    dmz:
+      subnets:
+      - subnet-8beacba3
+      - subnet-14111052
+      - subnet-e900e49e
+      azs:
+      - us-east-1c
+      - us-east-1a
+      - us-east-1d
+    db-rds:
+      subnets:
+      - subnet-80eacba8
+      - subnet-d600e4a1
+      - subnet-10111056
+      azs:
+      - us-east-1c
+      - us-east-1d
+      - us-east-1a
+  ct:
+    net:
+      subnets:
+      - subnet-5deff41b
+      - subnet-e733ca90
+      - subnet-3999a211
+      azs:
+      - us-east-1a
+      - us-east-1d
+      - us-east-1c
+  stg:
+    db-diy:
+      subnets:
+      - subnet-2b11106d
+      - subnet-e9eacbc1
+      - subnet-ca00e4bd
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    app-2:
+      subnets:
+      - subnet-cf00e4b8
+      - subnet-2f111069
+      - subnet-97eacbbf
+      azs:
+      - us-east-1d
+      - us-east-1a
+      - us-east-1c
+    nmgt:
+      subnets:
+      - subnet-3d11107b
+      - subnet-e6eacbce
+      - subnet-b700e4c0
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    db-rds:
+      subnets:
+      - subnet-2d11106b
+      - subnet-e8eacbc0
+      - subnet-cb00e4bc
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    dmz:
+      subnets:
+      - subnet-20111066
+      - subnet-c300e4b4
+      - subnet-92eacbba
+      azs:
+      - us-east-1a
+      - us-east-1d
+      - us-east-1c
+    app-1:
+      subnets:
+      - subnet-c000e4b7
+      - subnet-21111067
+      - subnet-93eacbbb
+      azs:
+      - us-east-1d
+      - us-east-1a
+      - us-east-1c
+  ppd:
+    app-2:
+      subnets:
+      - subnet-1a11105c
+      - subnet-9ceacbb4
+      - subnet-dd00e4aa
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    nmgt:
+      subnets:
+      - subnet-e5eacbcd
+      - subnet-c800e4bf
+      - subnet-3c11107a
+      azs:
+      - us-east-1c
+      - us-east-1d
+      - us-east-1a
+    app-1:
+      subnets:
+      - subnet-98eacbb0
+      - subnet-1d11105b
+      - subnet-de00e4a9
+      azs:
+      - us-east-1c
+      - us-east-1a
+      - us-east-1d
+    db-rds:
+      subnets:
+      - subnet-1811105e
+      - subnet-9deacbb5
+      - subnet-dc00e4ab
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    dmz:
+      subnets:
+      - subnet-1c11105a
+      - subnet-87eacbaf
+      - subnet-df00e4a8
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d
+    db-diy:
+      subnets:
+      - subnet-1911105f
+      - subnet-9eeacbb6
+      - subnet-db00e4ac
+      azs:
+      - us-east-1a
+      - us-east-1c
+      - us-east-1d

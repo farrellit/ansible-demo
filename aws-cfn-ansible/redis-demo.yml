@@ -1,0 +1,43 @@
+---
+# Example CF stack simply runs a debug on the server in the ASG after boot.
+- hosts: localhost
+  gather_facts: false
+  vars: 
+    environ: test
+    group: app-1
+    stack_name: "{{environ}}-{{lookup('env','USER')}}-AnsibleDemoRedis" 
+    ansible_archive: https://sps-build-deploy.s3.amazonaws.com/ansible/ansible-pb-redis-0.0.0.tgz
+    image_group: ubuntu14
+    image_type: t2.micro
+    keypair_name: "{{lookup('env','USER')}}"
+    instance_security_groups: [ sg-83dfc9e6 ]
+    ansible_playbooks: main.yml     
+    ansible_inventory: |
+      [localhost]
+      localhost ansible_connection=local
+      [redis]
+      [redis:children]
+      localhost
+    stack_instance_tags:
+      "sps:owner": "{{lookup('env','USER')}}@spscommerce.com"
+      "sps:unit": "techops"
+      "sps:env": "{{environ}}"
+      "sps:hours_of_operation": "0000-2359"
+      "sps:product": "internal"
+    stack_elb:
+      scheme: internal
+      listeners:
+        - instance_port: 6379
+          port: 6379
+          allowed:
+            - sg-83dfc9e6
+            - 172.16.0.0/12
+            - 10.0.0.0/8
+      health_check:
+        interval: 15
+        target: TCP:6379
+        timeout: 3
+        healthy_threshold: 2
+        unhealthy_threshold: 2
+  roles:
+    - stack

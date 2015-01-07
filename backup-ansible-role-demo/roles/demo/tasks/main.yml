@@ -1,0 +1,14 @@
+---
+- action:
+    module: "{{ ansible_pkg_mgr }}"
+    name: "{{redis_package[ansible_pkg_mgr]}}"
+    state: present
+  notify: 
+    - restart redis
+
+- name: Configure redis bind address
+  lineinfile: dest={{item}} regexp='^bind ' line='bind 0.0.0.0' 
+  with_fileglob:
+      - /etc/redis.conf
+      - /etc/redis/redis.conf
+    
